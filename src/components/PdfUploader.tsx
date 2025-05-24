@@ -4,10 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { Upload, FileX, CheckCircle, Loader2 } from 'lucide-react';
 import { uploadPdf } from '../lib/api';
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 const PdfUploader: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const navigate = useNavigate();
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -19,12 +22,20 @@ const PdfUploader: React.FC = () => {
       setError('Only PDF files are allowed');
       return;
     }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size must be less than 10MB');
+      return;
+    }
     
     setUploading(true);
     setError(null);
+    setUploadProgress(0);
     
     try {
-      const result = await uploadPdf(file);
+      const result = await uploadPdf(file, (progress) => {
+        setUploadProgress(progress);
+      });
       
       if (result) {
         setSuccess(true);
@@ -68,6 +79,15 @@ const PdfUploader: React.FC = () => {
             <>
               <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
               <p className="text-lg font-medium text-gray-700">Uploading PDF...</p>
+              <div className="w-full max-w-xs mt-4">
+                <div className="bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-blue-500 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-sm text-gray-600 mt-2">{Math.round(uploadProgress)}%</p>
+              </div>
             </>
           ) : success ? (
             <>
