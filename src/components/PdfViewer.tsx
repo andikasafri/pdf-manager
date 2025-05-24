@@ -18,6 +18,7 @@ const PdfViewer: React.FC = () => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
+  const [loadingPage, setLoadingPage] = useState(false);
 
   useEffect(() => {
     async function loadPdfFile() {
@@ -63,6 +64,7 @@ const PdfViewer: React.FC = () => {
     
     const newPage = pageNumber + offset;
     if (newPage >= 1 && newPage <= numPages) {
+      setLoadingPage(true);
       setPageNumber(newPage);
     }
   }
@@ -156,6 +158,13 @@ const PdfViewer: React.FC = () => {
             renderTextLayer={false}
             renderAnnotationLayer={false}
             className="shadow-xl"
+            loading={
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
+                <p className="text-gray-300">Loading page...</p>
+              </div>
+            }
+            onRenderSuccess={() => setLoadingPage(false)}
           />
         </Document>
       </div>

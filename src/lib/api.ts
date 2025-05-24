@@ -1,17 +1,23 @@
 import { supabase } from './supabase';
 import type { PdfFile } from './supabase';
 
+const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+
 // Upload a PDF file to Supabase storage and store metadata in the database
-export async function uploadPdf(file: File): Promise<PdfFile | null> {
+export async function uploadPdf(
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<PdfFile | null> {
   try {
     // Create a unique file path
     const filePath = `${Date.now()}-${file.name}`;
     
-    // Upload file to Supabase storage
-    const { data: storageData, error: storageError } = await supabase
-      .storage
-      .from('pdfs')
-      .upload(filePath, file);
+    // Upload file to Supabase storage using chunks for large files
+    const { data: storageData, error: storageError } = await uploadLargeFile(
+      file,
+      filePath,
+      onProgress
+    );
       
     if (storageError) {
       console.error('Error uploading to storage:', storageError);
@@ -41,6 +47,38 @@ export async function uploadPdf(file: File): Promise<PdfFile | null> {
   } catch (error) {
     console.error('Upload error:', error);
     return null;
+  }
+}
+
+async function uploadLargeFile(
+  file: File,
+  filePath: string,
+  onProgress?: (progress: number) => void
+): Promise<{ data: any; error: Error | null }> {
+  try {
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    let uploadedChunks = 0;
+
+    for (let start = 0; start < file.size; start += CHUNK_SIZE) {
+      const chunk = file.slice(start, start + CHUNK_SIZE);
+      const { error } = await supabase.storage
+        .from('pdfs')
+        .upload(filePath, chunk, {
+          upsert: true,
+          contentType: file.type,
+        });
+
+      if (error) throw error;
+
+      uploadedChunks++;
+      if (onProgress) {
+        onProgress((uploadedChunks / totalChunks) * 100);
+      }
+    }
+
+    return { data: true, error: null };
+  } catch (error) {
+    return { data: null, error: error as Error };
   }
 }
 
@@ -91,7 +129,7 @@ export async function getPdfUrl(path: string): Promise<string | null> {
     const { data, error } = await supabase
       .storage
       .from('pdfs')
-      .createSignedUrl(path, 60 * 60); // 1 hour expiry
+      .createSignedUrl(path, 3600); // 1 hour expiry
       
     if (error) {
       console.error('Error creating signed URL:', error);
